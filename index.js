@@ -44,7 +44,7 @@ client.on('message', message => {
 // Bot post image to a channel for moderation
 const sendImageForModeration = (attachment, channel) => {
   channel
-    .send('Utilisez 👌 pour valider la photo', attachment)
+    .send('Utilisez 👍 pour valider la photo ou 👎 pour refuser', attachment)
     .then(message => {
       waitValidation(message);
     })
@@ -53,7 +53,7 @@ const sendImageForModeration = (attachment, channel) => {
 
 // Filter method for validation
 const filter = (reaction) => {
-  return ['👌'].includes(reaction.emoji.name);
+  return ['👍', '👎'].includes(reaction.emoji.name);
 };
 
 // Wait for validation
@@ -61,7 +61,12 @@ const waitValidation = (message) => {
   // wait for 10 hours...
   message.awaitReactions(filter, { max: 1, time: 36000 * 1000, errors: ['time'] })
     .then(collected => {
-      sendToPublicChannel(message);
+      const reaction = collected.first();
+
+      if (reaction.emoji.name === '👍') {
+        sendToPublicChannel(message);
+      }
+
       message
         .react('🆗')
         .catch(console.error);
