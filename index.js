@@ -46,7 +46,7 @@ client.on('message', message => {
 // Bot post image to a channel for moderation
 const sendImageForModeration = (attachment, channel, text) => {
   channel
-    .send('Utilisez 👍 pour valider la photo ou 👎 pour refuser', attachment)
+    .send("Utilisez 👍 pour valider la photo ou 👎 pour refuser\n" + text, attachment)
     .then(message => {
       waitValidation(message, text);
     })
