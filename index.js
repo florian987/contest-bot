@@ -26,12 +26,14 @@ client.on('message', message => {
 
     console.log('Got message from ', message.author.username);
     console.log('URL: ', message.attachments.first().url);
+    console.log('Mode: ', getPhotoText(message.content))
 
     client.channels.fetch(process.env.MODERATION_CHANNEL)
       .then(targetChannel => {
         sendImageForModeration(
-          message.attachments.first(), 
-          targetChannel
+          message.attachments.first(),
+          targetChannel,
+          getPhotoText(message.content)
         );
 
         // send message to user
@@ -42,11 +44,11 @@ client.on('message', message => {
 });
 
 // Bot post image to a channel for moderation
-const sendImageForModeration = (attachment, channel) => {
+const sendImageForModeration = (attachment, channel, text) => {
   channel
     .send('Utilisez 👍 pour valider la photo ou 👎 pour refuser', attachment)
     .then(message => {
-      waitValidation(message);
+      waitValidation(message, text);
     })
     .catch(console.error);
 };
@@ -57,14 +59,14 @@ const filter = (reaction) => {
 };
 
 // Wait for validation
-const waitValidation = (message) => {
+const waitValidation = (message, text) => {
   // wait for 10 hours...
   message.awaitReactions(filter, { max: 1, time: 36000 * 1000, errors: ['time'] })
     .then(collected => {
       const reaction = collected.first();
 
       if (reaction.emoji.name === '👍') {
-        sendToPublicChannel(message);
+        sendToPublicChannel(message, text);
       }
 
       message
@@ -79,12 +81,20 @@ const waitValidation = (message) => {
     });
 };
 
-const sendToPublicChannel = (message) => {
+const sendToPublicChannel = (message, text) => {
   client.channels.fetch(process.env.PUBLIC_CHANNEL)
   .then(channel => {
     channel
-      .send('Nouveau teasing pour le CoCOoNTEST 3 !', message.attachments.first())
+      .send(text, message.attachments.first())
       .catch(console.error);
   })
   .catch(console.error);
 }
+
+const getPhotoText = (text) => {
+  if (text.search('conseil') !== -1) {
+    return '[CoCOoNTEST 3] J\'ai besoin de vos conseils !';
+  }
+
+  return '[CoCOoNTEST 3] Nouveau teasing !';
+} 
