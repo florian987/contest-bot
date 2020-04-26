@@ -1,11 +1,8 @@
 'use strict';
 
-// Extract the required classes from the discord.js module
-const { Client, MessageAttachment, MessageEmbed } = require('discord.js');
-
+const { Client } = require('discord.js');
 require('dotenv').config();
 
-// Create an instance of a Discord client
 const client = new Client();
 
 // Log our bot in using the token from https://discordapp.com/developers/applications/me
@@ -23,17 +20,18 @@ client.on('ready', () => {
 client.on('message', message => {
   // DM message, with attachment, not coming from a bot
   if (message.channel.type === 'dm' && !message.author.bot && message.attachments.size > 0) {
-
     console.log('Got message from ', message.author.username);
     console.log('URL: ', message.attachments.first().url);
-    console.log('Mode: ', getPhotoText(message.content))
+
+    const mode = getMode(message.content);
+    console.log('Mode: ', mode);
 
     client.channels.fetch(process.env.MODERATION_CHANNEL)
       .then(targetChannel => {
         sendImageForModeration(
           message.attachments.first(),
           targetChannel,
-          getPhotoText(message.content)
+          mode
         );
 
         // send message to user
@@ -44,11 +42,12 @@ client.on('message', message => {
 });
 
 // Bot post image to a channel for moderation
-const sendImageForModeration = (attachment, channel, text) => {
+const sendImageForModeration = (attachment, channel, mode) => {
+  const text = 'Utilisez 👍 pour valider la photo ou 👎 pour refuser\nMode: ' + mode;
   channel
-    .send("Utilisez 👍 pour valider la photo ou 👎 pour refuser\n" + text, attachment)
+    .send(text, attachment)
     .then(message => {
-      waitValidation(message, text);
+      waitValidation(message, mode);
     })
     .catch(console.error);
 };
@@ -59,42 +58,103 @@ const filter = (reaction) => {
 };
 
 // Wait for validation
-const waitValidation = (message, text) => {
+const waitValidation = (message, mode) => {
   // wait for 10 hours...
   message.awaitReactions(filter, { max: 1, time: 36000 * 1000, errors: ['time'] })
     .then(collected => {
       const reaction = collected.first();
 
       if (reaction.emoji.name === '👍') {
-        sendToPublicChannel(message, text);
+        publishPicture(message, mode);
       }
 
-      message
-        .react('🆗')
-        .catch(console.error);
+      if (reaction.emoji.name === '👎') {
+        message.react('🆗').catch(console.error);
+      }
     })
     .catch(collected => {
       // time is over
-      message
-        .react('⌛')
-        .catch(console.error);
+      message.react('⌛').catch(console.error);
     });
 };
 
-const sendToPublicChannel = (message, text) => {
-  client.channels.fetch(process.env.PUBLIC_CHANNEL)
-  .then(channel => {
-    channel
-      .send(text, message.attachments.first())
+const publishPicture = (message, mode) => {
+  if (mode === 'forum') {
+    sendImageToForum(message.attachments.first().url)
+      .then(status => {
+        message.react('🆗').catch(console.error);
+      })
       .catch(console.error);
-  })
-  .catch(console.error);
-}
+  } else {
+    client.channels.fetch(process.env.PUBLIC_CHANNEL)
+      .then(channel => {
+        channel
+          .send(getText(mode), message.attachments.first())
+          .then(publicMessage => {
+            message.react('🆗').catch(console.error);
+          })
+          .catch(console.error);
+      })
+      .catch(console.error);
+  }
+};
 
-const getPhotoText = (text) => {
-  if (text.search('conseil') !== -1) {
+const getMode = (comment) => {
+  if (comment.search('conseil') !== -1) {
+    return 'advice';
+  } else if (comment.search('forum') !== -1) {
+    return 'forum';
+  }
+
+  return 'teasing';
+};
+
+const getText = (mode) => {
+  if (mode === 'advice') {
     return '[CoCOoNTEST 3] J\'ai besoin de vos conseils !';
   }
 
   return '[CoCOoNTEST 3] Nouveau teasing !';
-} 
+};
+
+const sendImageToForum = (url) => {
+  console.log('Send to forum');
+
+  const https = require('https');
+  const data = 'url=' + url;
+  const options = {
+    hostname: process.env.FORUM_HOSTNAME,
+    port: 443,
+    path: '/api.php',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': data.length,
+      'X-AUTH-TOKEN': process.env.FORUM_TOKEN
+    }
+  };
+
+  return new Promise(function (resolve, reject) {
+    const req = https.request(options, res => {
+      console.log(`statusCode: ${res.statusCode}`);
+
+      // reject on bad status
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return reject(new Error('statusCode=' + res.statusCode));
+      }
+
+      // resolve on data
+      res.on('data', function () {
+        resolve('ok');
+      });
+    });
+
+    // reject on request error
+    req.on('error', function (err) {
+      reject(err);
+    });
+
+    req.write(data);
+    req.end();
+  });
+};
