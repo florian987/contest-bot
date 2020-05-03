@@ -100,9 +100,9 @@ const publishPicture = (message, mode) => {
 };
 
 const getMode = (comment) => {
-  if (comment.search('conseil') !== -1) {
+  if (comment.search(/conseil/i) !== -1) {
     return 'advice';
-  } else if (comment.search('forum') !== -1) {
+  } else if (comment.search(/forum/i) !== -1) {
     return 'forum';
   }
 
