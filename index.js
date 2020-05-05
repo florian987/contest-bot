@@ -25,13 +25,16 @@ client.on('message', message => {
 
     const mode = getMode(message.content);
     console.log('Mode: ', mode);
+    const title = getTitle(message.content);
+    console.log('Title: ', title);
 
     client.channels.fetch(process.env.MODERATION_CHANNEL)
       .then(targetChannel => {
         sendImageForModeration(
           message.attachments.first(),
           targetChannel,
-          mode
+          mode,
+          title
         );
 
         // send message to user
@@ -42,12 +45,16 @@ client.on('message', message => {
 });
 
 // Bot post image to a channel for moderation
-const sendImageForModeration = (attachment, channel, mode) => {
-  const text = 'Utilisez 👍 pour valider la photo ou 👎 pour refuser\nMode: ' + mode;
+const sendImageForModeration = (attachment, channel, mode, title) => {
+  let text = 'Valider avec 👍 Refuser avec 👎\nMode: ' + mode;
+  if (title) {
+    text = text + '\nTitre: ' + title;
+  }
+
   channel
     .send(text, attachment)
     .then(message => {
-      waitValidation(message, mode);
+      waitValidation(message, mode, title);
     })
     .catch(console.error);
 };
@@ -58,14 +65,14 @@ const filter = (reaction) => {
 };
 
 // Wait for validation
-const waitValidation = (message, mode) => {
+const waitValidation = (message, mode, title) => {
   // wait for 10 hours...
   message.awaitReactions(filter, { max: 1, time: 36000 * 1000, errors: ['time'] })
     .then(collected => {
       const reaction = collected.first();
 
       if (reaction.emoji.name === '👍') {
-        publishPicture(message, mode);
+        publishPicture(message, mode, title);
       }
 
       if (reaction.emoji.name === '👎') {
@@ -78,9 +85,9 @@ const waitValidation = (message, mode) => {
     });
 };
 
-const publishPicture = (message, mode) => {
+const publishPicture = (message, mode, title) => {
   if (mode === 'forum') {
-    sendImageToForum(message.attachments.first().url)
+    sendImageToForum(message.attachments.first().url, title)
       .then(status => {
         message.react('🆗').catch(console.error);
       })
@@ -89,7 +96,7 @@ const publishPicture = (message, mode) => {
     client.channels.fetch(process.env.PUBLIC_CHANNEL)
       .then(channel => {
         channel
-          .send(getText(mode), message.attachments.first())
+          .send(getText(mode, title), message.attachments.first())
           .then(publicMessage => {
             message.react('🆗').catch(console.error);
           })
@@ -97,6 +104,16 @@ const publishPicture = (message, mode) => {
       })
       .catch(console.error);
   }
+};
+
+const getTitle = (comment) => {
+  const match = comment.match(/"(.*)"/);
+
+  if (match !== null) {
+    return match[1];
+  }
+
+  return null;
 };
 
 const getMode = (comment) => {
@@ -109,19 +126,25 @@ const getMode = (comment) => {
   return 'teasing';
 };
 
-const getText = (mode) => {
-  if (mode === 'advice') {
-    return '[CoCOoNTEST 3] J\'ai besoin de vos conseils !';
+const getText = (mode, title) => {
+  let text = '[CoCOoNTEST 3] ';
+
+  if (title) {
+    text += '[' + title + '] ';
   }
 
-  return '[CoCOoNTEST 3] Nouveau teasing !';
+  if (mode === 'advice') {
+    return text + '\nJ\'ai besoin de vos conseils !';
+  }
+
+  return text + '\nNouveau teasing !';
 };
 
-const sendImageToForum = (url) => {
+const sendImageToForum = (url, title) => {
   console.log('Send to forum');
 
   const https = require('https');
-  const data = 'url=' + url;
+  const data = 'url=' + url + '&title=' + title;
   const options = {
     hostname: process.env.FORUM_HOSTNAME,
     port: 443,
