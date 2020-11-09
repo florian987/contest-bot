@@ -127,7 +127,7 @@ const getMode = (comment) => {
 };
 
 const getText = (mode, title) => {
-  let text = '[CoCOoNTEST 3] ';
+  let text = '[' + process.env.CONTEST_NAME + '] ';
 
   if (title) {
     text += '[' + title + '] ';
